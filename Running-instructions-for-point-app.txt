@@ -1,0 +1,71 @@
+Running the points program
+
+Have provided the Readme.md files in all the three modules and shared the source code accordingly
+	spring-boot-app(run as spring boot app)
+	console-app (run as java jar)
+	ui-app (run as angular app)
+	
+	to run these apps follow the below steps 
+
+------------- Spring boot app 
+prerequisites for running the app :
+    create a database schema with name "point_app" in mysql(5.6) and run the below query to create a table
+        CREATE TABLE `point` (
+        	`id` VARCHAR(255) NOT NULL,
+        	`created_by` VARCHAR(255) NOT NULL,
+        	`created_on` DATETIME NOT NULL,
+        	`last_updated_by` VARCHAR(255) NULL DEFAULT NULL,
+        	`last_updated_on` DATETIME NULL DEFAULT NULL,
+        	`measurement_location` VARCHAR(255) NULL DEFAULT NULL,
+        	`measurement_day` BIGINT(20) NULL DEFAULT NULL,
+        	`measurement_value` DOUBLE(20,2) NULL DEFAULT NULL,
+        	PRIMARY KEY (`id`),
+        	UNIQUE INDEX `location-day` (`measurement_location`, `measurement_day`)
+        )
+    have set the property "spring.jpa.generate-ddl=true" for creating table just in case.
+  Requires java-8
+
+Run the app as a spring boot application (on default port - 8080)
+
+The api's exposed are
+view points (http-get) -- http://localhost:8080/api/v1/points 
+					or -- http://localhost:8080/api/v1/points?offset=20&limit=10
+add point (http-post) -- http://localhost:8080/api/v1/points
+    sample json : {"measurementDay": "2018-12-17", "location": "FI", "value": 15}
+delete api (http-delete) -- http://localhost:8080/api/v1/points?id=0c157350-aabd-4c55-a42e-6e2de16b195b
+    pass the id of the point to be deleted
+
+This app also has the junit test cases written for all the above api's, service class and repository class.
+
+
+----------------- Console app
+Run the console app as a java jar application
+command to run is -- (use java8)
+    java -jar console-app-1.0-SNAPSHOT-shaded.jar
+
+this console app will create the points by hitting the add-point api form the main class
+    this creates the point by randomly generating
+        measurement-value(0-1000),
+        measurement-day(in 2018) and
+        measurement location(EE,FI,LV)
+
+you can stop the process of creating the points by hitting "ctrl-c"
+
+
+------------------ ui-app
+This project was generated with [Angular CLI] version 7.1.4.
+
+This project was generated using node version node -v -- v10.14.2
+
+do a npm install then 
+
+Run `ng serve` for a dev server. 
+Navigate to `http://localhost:4200/`
+
+This app has one page which shows the summary and grid which shows all rows. 
+You can delete the point by selecting the row and hit on delete button.
+The filter icon is provided next Measurementlocation header where you can filter on location  
+
+
+
+
