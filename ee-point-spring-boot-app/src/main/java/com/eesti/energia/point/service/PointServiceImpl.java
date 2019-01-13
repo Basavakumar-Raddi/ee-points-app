@@ -1,27 +1,19 @@
 package com.eesti.energia.point.service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.DoubleSummaryStatistics;
-import java.util.List;
-
-import javax.inject.Inject;
-
 import com.eesti.energia.point.dao.OffsetLimitRequest;
+import com.eesti.energia.point.dao.PointRepository;
 import com.eesti.energia.point.dto.PointDTO;
 import com.eesti.energia.point.dto.SummaryDTO;
 import com.eesti.energia.point.entity.Point;
-import com.eesti.energia.point.dao.PointRepository;
-import com.eesti.energia.point.util.DateUtil;
 import com.eesti.energia.point.util.mapper.PointMapper;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.inject.Inject;
+import java.util.*;
 
 @Service
 public class PointServiceImpl implements PointService{
@@ -31,14 +23,13 @@ public class PointServiceImpl implements PointService{
 
     @Autowired
     private PointMapper pointMapper;
-    Object updatePointLock = new Object();
-
 
     /**
      * saves the point to database and synchronizes the update and not add
      * @param pointDto
      * @return
      */
+    @Transactional
     @Override public PointDTO addPoint(PointDTO pointDto) {
         Point pointSaved = null;
         Point point = pointMapper.mapDtoToEntity(pointDto);
@@ -46,12 +37,10 @@ public class PointServiceImpl implements PointService{
         Point existingPoint = pointRepository.findByMeasurementDayAndLocation(point.getMeasurementDay(), point.getLocation());
 
         if(existingPoint != null){
-            synchronized(updatePointLock) {
-                existingPoint.setValue(existingPoint.getValue() + point.getValue());
-                existingPoint.setLastModifiedBy("user");
-                existingPoint.setLastModifiedDate(new Date());
-                pointSaved = pointRepository.save(existingPoint);
-            }
+            existingPoint.setValue(existingPoint.getValue() + point.getValue());
+            existingPoint.setLastModifiedBy("user");
+            existingPoint.setLastModifiedDate(new Date());
+            pointSaved = pointRepository.save(existingPoint);
         } else {
             point.setCreatedBy("user");
             point.setCreatedDate(new Date());
@@ -63,8 +52,6 @@ public class PointServiceImpl implements PointService{
 
     @Override public SummaryDTO pointsSummary() {
         List<Point> pointList = pointRepository.findAll();
-        /*List<PointDTO> response = ConversionUtil.convertJson(ConversionUtil.convertToJsonString(pointList),
-                new TypeReference<List<PointDTO>>(){}); */
         return getSummary(pointList);
     }
 
@@ -74,6 +61,7 @@ public class PointServiceImpl implements PointService{
      * @param limit
      * @return
      */
+    @Transactional
     @Override public SummaryDTO viewPointsPaginated(final int offset, final int limit) {
         List<String> sortAttr = Arrays.asList("measurementDay");
         Page<Point> pointsPage = pointRepository.findAll(
@@ -86,6 +74,7 @@ public class PointServiceImpl implements PointService{
      * deletes the point
      * @param id
      */
+    @Transactional(timeout = 5)
     @Override public void deletePoint(String id) {
         pointRepository.deleteById(id);
     }
