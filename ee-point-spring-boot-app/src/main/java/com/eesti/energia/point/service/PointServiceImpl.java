@@ -1,27 +1,23 @@
 package com.eesti.energia.point.service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.DoubleSummaryStatistics;
-import java.util.List;
-
-import javax.inject.Inject;
-
 import com.eesti.energia.point.dao.OffsetLimitRequest;
+import com.eesti.energia.point.dao.PointRepository;
 import com.eesti.energia.point.dto.PointDTO;
 import com.eesti.energia.point.dto.SummaryDTO;
 import com.eesti.energia.point.entity.Point;
-import com.eesti.energia.point.dao.PointRepository;
-import com.eesti.energia.point.util.DateUtil;
+import com.eesti.energia.point.util.LocationEnum;
 import com.eesti.energia.point.util.mapper.PointMapper;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.util.ConcurrentReferenceHashMap;
+
+import javax.inject.Inject;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class PointServiceImpl implements PointService{
@@ -31,7 +27,10 @@ public class PointServiceImpl implements PointService{
 
     @Autowired
     private PointMapper pointMapper;
-    Object updatePointLock = new Object();
+
+    private ConcurrentReferenceHashMap<WeakMapObj,Lock> weakHashMap = new ConcurrentReferenceHashMap();
+    Lock updateLock = new ReentrantLock();
+    Lock addLock = new ReentrantLock();
 
 
     /**
@@ -39,32 +38,52 @@ public class PointServiceImpl implements PointService{
      * @param pointDto
      * @return
      */
-    @Override public PointDTO addPoint(PointDTO pointDto) {
+    @Override public PointDTO addPoint(PointDTO pointDto) throws InterruptedException {
         Point pointSaved = null;
+        Point existingPoint = null;
         Point point = pointMapper.mapDtoToEntity(pointDto);
+        WeakMapObj weakMapObj = new WeakMapObj(point.getMeasurementDay(),
+                point.getLocation().getLocation(),point);
+        weakHashMap.putIfAbsent(weakMapObj,new ReentrantLock());
+        pointSaved = persistPoint(weakMapObj);
+        //marking the weakMapObj as null so that when gc kicks in it can remove it form map
+        weakMapObj = null;
+        return pointMapper.mapEntityToDto(pointSaved);
+    }
 
-        Point existingPoint = pointRepository.findByMeasurementDayAndLocation(point.getMeasurementDay(), point.getLocation());
-
-        if(existingPoint != null){
-            synchronized(updatePointLock) {
-                existingPoint.setValue(existingPoint.getValue() + point.getValue());
-                existingPoint.setLastModifiedBy("user");
-                existingPoint.setLastModifiedDate(new Date());
+    private Point persistPoint(WeakMapObj weakMapObj) throws InterruptedException {
+        Point pointSaved = null;
+        Lock fetchedReentrantLock = weakHashMap.get(weakMapObj);
+        try {
+            if(fetchedReentrantLock.tryLock(10, TimeUnit.SECONDS)){
+                //this fetch will help for concurrent updates, concurrent add requests, concurrent update and delete
+                Point existingPoint = pointRepository.findByMeasurementDayAndLocation(
+                        weakMapObj.getPoint().getMeasurementDay(), LocationEnum.valueOf(weakMapObj.getLocation()));
+                //for handling delete in between update and delete
+                if(existingPoint!=null) {
+                    existingPoint.setValue(existingPoint.getValue() + weakMapObj.getPoint().getValue());
+                    existingPoint.setLastModifiedBy("user");
+                    existingPoint.setLastModifiedDate(new Date());
+                    System.out.println("updating new point");
+                } else {
+                    existingPoint = weakMapObj.getPoint();
+                    existingPoint.setCreatedBy("user");
+                    existingPoint.setCreatedDate(new Date());
+                    System.out.println("adding new point");
+                }
                 pointSaved = pointRepository.save(existingPoint);
             }
-        } else {
-            point.setCreatedBy("user");
-            point.setCreatedDate(new Date());
-            pointSaved = pointRepository.save(point);
+        } catch (InterruptedException e) {
+            throw e;
+        }finally{
+            //release lock
+            fetchedReentrantLock.unlock();
         }
-
-        return pointMapper.mapEntityToDto(pointSaved);
+        return pointSaved;
     }
 
     @Override public SummaryDTO pointsSummary() {
         List<Point> pointList = pointRepository.findAll();
-        /*List<PointDTO> response = ConversionUtil.convertJson(ConversionUtil.convertToJsonString(pointList),
-                new TypeReference<List<PointDTO>>(){}); */
         return getSummary(pointList);
     }
 
@@ -86,8 +105,23 @@ public class PointServiceImpl implements PointService{
      * deletes the point
      * @param id
      */
-    @Override public void deletePoint(String id) {
-        pointRepository.deleteById(id);
+    @Override public void deletePoint(String id) throws InterruptedException {
+        Point existingPoint = pointRepository.getOne(id);
+        WeakMapObj weakMapObj = new WeakMapObj(existingPoint.getMeasurementDay(),
+                existingPoint.getLocation().getLocation(),existingPoint);
+        //weakHashMap.put(weakMapObj,updateLock);
+        weakHashMap.putIfAbsent(weakMapObj, new ReentrantLock());
+        Lock fetchedReentrantLock = weakHashMap.get(weakMapObj);
+        try {
+            if(fetchedReentrantLock.tryLock(10, TimeUnit.SECONDS)){
+                pointRepository.deleteById(id);
+            }
+        } catch (InterruptedException e) {
+            throw e;
+        }finally{
+            //release lock
+            fetchedReentrantLock.unlock();
+        }
     }
 
     private SummaryDTO getPointDtoList(List<Point> pointList, Long totalRows){

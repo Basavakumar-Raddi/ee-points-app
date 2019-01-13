@@ -95,21 +95,29 @@ public class PointServiceTest {
     @Test
     public void addPointTest() {
         Double value = 200.35;
-        PointDTO pointDTOResp = pointService.addPoint(pointDTO);
-        Assert.assertEquals(pointDTOResp.getMeasurementDay(),"2018-12-17");
-        Assert.assertEquals(pointDTOResp.getLocation(),LocationEnum.EE);
-        Assert.assertEquals(pointDTOResp.getValue(),value);
-
+        PointDTO pointDTOResp = null;
+        try {
+            pointDTOResp = pointService.addPoint(pointDTO);
+            Assert.assertEquals(pointDTOResp.getMeasurementDay(),"2018-12-17");
+            Assert.assertEquals(pointDTOResp.getLocation(),LocationEnum.EE);
+            Assert.assertEquals(pointDTOResp.getValue(),value);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
     public void failAddPointTest() {
         Double value = 88.98;
-        PointDTO pointDTOResp = pointService.addPoint(pointDTO);
-        Assert.assertNotEquals(pointDTOResp.getMeasurementDay(),"2018-05-10");
-        Assert.assertNotEquals(pointDTOResp.getLocation(),LocationEnum.FI);
-        Assert.assertNotEquals(pointDTOResp.getValue(),value);
-
+        PointDTO pointDTOResp = null;
+        try {
+            pointDTOResp = pointService.addPoint(pointDTO);
+            Assert.assertNotEquals(pointDTOResp.getMeasurementDay(),"2018-05-10");
+            Assert.assertNotEquals(pointDTOResp.getLocation(),LocationEnum.FI);
+            Assert.assertNotEquals(pointDTOResp.getValue(),value);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 }

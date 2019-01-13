@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 public interface PointService {
 
-    public PointDTO addPoint(PointDTO pointDto);
+    public PointDTO addPoint(PointDTO pointDto) throws InterruptedException;
 
     public SummaryDTO pointsSummary();
 
     public SummaryDTO viewPointsPaginated(int offset, int limit);
 
-    public void deletePoint(String id);
+    public void deletePoint(String id) throws InterruptedException;
 }
