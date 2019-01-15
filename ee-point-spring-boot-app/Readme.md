@@ -1,5 +1,6 @@
 prerequisites for running the app :
     create a database schema with name "A1  " in mysql(5.6) and run the below query to create a table
+```
         CREATE TABLE `point` (
         	`id` VARCHAR(255) NOT NULL,
         	`created_by` VARCHAR(255) NOT NULL,
@@ -12,6 +13,7 @@ prerequisites for running the app :
         	PRIMARY KEY (`id`),
         	UNIQUE INDEX `location-day` (`measurement_location`, `measurement_day`)
         )
+```
     have set the property "spring.jpa.generate-ddl=true" for creating table just in case.
     Requires java-8
 
