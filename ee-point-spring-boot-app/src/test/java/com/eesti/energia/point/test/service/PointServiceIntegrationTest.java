@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +19,7 @@ import javax.validation.constraints.AssertTrue;
 
 import com.eesti.energia.point.PointApplication;
 import com.eesti.energia.point.dto.PointDTO;
+import com.eesti.energia.point.entity.Point;
 import com.eesti.energia.point.service.PointService;
 import com.eesti.energia.point.util.LocationEnum;
 
@@ -73,18 +75,11 @@ public class PointServiceIntegrationTest {
                                         .value(10.11).build();
         addPoint(pointDto);
         List<Double> expectedValues = Arrays.asList(20.22, 30.33);
-        ExecutorService pool = Executors.newFixedThreadPool(3);
-        ExecutorCompletionService es = new ExecutorCompletionService(pool);
-        es.submit(() -> updatePointThrd1(pointDto));
-        es.submit(() -> updatePointThrd3(pointDto));
-        List<Double> expectedPointValues = new ArrayList<>();
-        for(int i=0;i<2;i++) {
-            Future<PointDTO> f = es.take();
-            expectedPointValues.add(f.get().getValue());
-        }
-        Assert.assertEquals(2, expectedPointValues.size());
-        Assert.assertTrue(expectedValues.containsAll(expectedPointValues));
-        pool.shutdown();
+        CompletableFuture<List<Double>> completableFuture = CompletableFuture.supplyAsync(() -> updatePointThrd1(pointDto))
+                .thenCombine(CompletableFuture.supplyAsync(() -> updatePointThrd3(pointDto)), (s1, s2) -> Arrays.asList(s1.getValue(), s2.getValue()));
+        List<Double> processedPointValues = completableFuture.get();
+        Assert.assertEquals(2, processedPointValues.size());
+        Assert.assertTrue(expectedValues.containsAll(processedPointValues));
     }
 
     @Test
